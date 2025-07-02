@@ -55,6 +55,9 @@ export class ReplicateProvider implements MediaProvider {
 
       this.client = new ReplicateClient(replicateConfig);
       this.config = { apiKey };
+      
+      // Start background model discovery (non-blocking)
+      this.discoverModelsInBackground();
     }
     // Provider will be available with known models even without API configuration
   }
@@ -423,5 +426,110 @@ export class ReplicateProvider implements MediaProvider {
     }
     
     return converted;
+  }
+
+  /**
+   * Discover additional models from Replicate API in background
+   * This runs async and doesn't block the constructor
+   */
+  private async discoverModelsInBackground(): Promise<void> {
+    if (!this.client) {
+      return;
+    }
+    
+    try {
+      console.log('[ReplicateProvider] Starting background model discovery...');
+      
+      // Simple timeout to prevent blocking
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Discovery timeout')), 30000)
+      );
+      
+      const discoveryPromise = this.performModelDiscovery();
+      
+      await Promise.race([discoveryPromise, timeoutPromise]);
+      
+    } catch (error) {
+      console.log('[ReplicateProvider] Background discovery completed with issues:', error instanceof Error ? error.message : error);
+    }
+  }
+  
+  /**
+   * Perform actual model discovery from Replicate API
+   */
+  private async performModelDiscovery(): Promise<void> {
+    if (!this.client) {
+      return;
+    }
+    
+    try {
+      // Use listModels to get public models from Replicate API
+      const response = await this.client.listModels();
+      const models = response.results || [];
+      
+      let discoveredCount = 0;
+      for (const modelData of models) {
+        if (!this.discoveredModels.has(modelData.id)) {
+          this.discoveredModels.set(modelData.id, {
+            id: modelData.id,
+            name: modelData.name || modelData.id.split('/').pop() || modelData.id,
+            description: modelData.description || `Replicate model: ${modelData.id}`,
+            capabilities: this.inferCapabilitiesFromModel(modelData),
+            parameters: modelData.parameters || {}
+          });
+          console.log(`[ReplicateProvider] Discovered new model: ${modelData.id}`);
+          discoveredCount++;
+        }
+      }
+      
+      console.log(`[ReplicateProvider] Discovery complete: ${discoveredCount} new models found`);
+      console.log(`[ReplicateProvider] Total models available: ${this.discoveredModels.size}`);
+      
+    } catch (error) {
+      console.log('[ReplicateProvider] Model discovery failed:', error instanceof Error ? error.message : error);
+    }
+  }
+  
+  /**
+   * Infer capabilities from model metadata
+   */
+  private inferCapabilitiesFromModel(modelData: any): MediaCapability[] {
+    const capabilities: MediaCapability[] = [];
+    const modelId = modelData.id.toLowerCase();
+    const description = (modelData.description || '').toLowerCase();
+    
+    // Infer capabilities based on model ID and description
+    if (modelId.includes('text-to-image') || modelId.includes('txt2img') || 
+        modelId.includes('flux') || modelId.includes('sdxl') || modelId.includes('stable-diffusion') ||
+        description.includes('text to image') || description.includes('generate image')) {
+      capabilities.push(MediaCapability.TEXT_TO_IMAGE);
+    }
+    
+    if (modelId.includes('text-to-video') || modelId.includes('video') ||
+        description.includes('text to video') || description.includes('video generation')) {
+      capabilities.push(MediaCapability.TEXT_TO_VIDEO);
+    }
+    
+    if (modelId.includes('music') || modelId.includes('audio') || modelId.includes('speech') || modelId.includes('tts') ||
+        description.includes('music') || description.includes('audio') || description.includes('speech')) {
+      capabilities.push(MediaCapability.TEXT_TO_AUDIO);
+    }
+    
+    if (modelId.includes('upscale') || modelId.includes('enhance') || modelId.includes('restore') ||
+        description.includes('upscale') || description.includes('enhance') || description.includes('restore')) {
+      capabilities.push(MediaCapability.IMAGE_TO_IMAGE);
+    }
+    
+    if (modelId.includes('image-to-video') || 
+        description.includes('image to video')) {
+      capabilities.push(MediaCapability.IMAGE_TO_VIDEO);
+    }
+    
+    // Default to text-to-image if no specific capability detected
+    if (capabilities.length === 0) {
+      capabilities.push(MediaCapability.TEXT_TO_IMAGE);
+    }
+    
+    return capabilities;
   }
 }
