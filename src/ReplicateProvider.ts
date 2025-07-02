@@ -469,6 +469,8 @@ export class ReplicateProvider implements MediaProvider {
       
       let discoveredCount = 0;
       for (const modelData of models) {
+        if (!modelData?.id) continue; // Skip models without ID
+        
         if (!this.discoveredModels.has(modelData.id)) {
           this.discoveredModels.set(modelData.id, {
             id: modelData.id,
@@ -495,8 +497,8 @@ export class ReplicateProvider implements MediaProvider {
    */
   private inferCapabilitiesFromModel(modelData: any): MediaCapability[] {
     const capabilities: MediaCapability[] = [];
-    const modelId = modelData.id.toLowerCase();
-    const description = (modelData.description || '').toLowerCase();
+    const modelId = (modelData?.id || '').toLowerCase();
+    const description = (modelData?.description || '').toLowerCase();
     
     // Infer capabilities based on model ID and description
     if (modelId.includes('text-to-image') || modelId.includes('txt2img') || 
