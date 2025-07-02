@@ -196,7 +196,7 @@ export class ReplicateTextToImageModel extends TextToImageModel {
         'png',
         {
           url: url,
-          downloadError: error.message,
+          downloadError: error instanceof Error ? error.message : 'Unknown error',
           ...metadata
         },
         { url }
