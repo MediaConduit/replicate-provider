@@ -50,11 +50,7 @@ export class ReplicateProvider implements MediaProvider {
       const replicateConfig: ReplicateConfig = {
         apiKey,
         timeout: 600000, // Longer timeout for AI model processing
-        retries: 2,
-        discovery: {
-          maxCacheAge: 24 * 60 * 60 * 1000, // 24 hours
-          cacheDir: './cache'
-        }
+        retries: 2
       };
 
       this.client = new ReplicateClient(replicateConfig);
@@ -77,19 +73,10 @@ export class ReplicateProvider implements MediaProvider {
     const replicateConfig: ReplicateConfig = {
       apiKey: config.apiKey,
       timeout: config.timeout || 600000,
-      retries: config.retries || 2,
-      discovery: {
-        maxCacheAge: 24 * 60 * 60 * 1000,
-        cacheDir: './cache' // Use default cache directory
-      }
+      retries: config.retries || 2
     };
 
     this.client = new ReplicateClient(replicateConfig);
-
-    // Initialize known models if not already done
-    if (this.discoveredModels.size === 0) {
-      this.initializeKnownReplicateModels();
-    }
   }
 
   async isAvailable(): Promise<boolean> {
